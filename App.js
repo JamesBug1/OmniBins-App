@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DashboardScreen from './screens/DashboardScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
