@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -15,7 +15,7 @@ const schedule = {
   date: 'April 28, 2026',
 };
 
-const weather = {
+const weatherFallback = {
   temperature: '28°C',
   condition: 'Partly Cloudy',
   humidity: '60%',
@@ -28,8 +28,69 @@ const stats = {
   pending: 8,
 };
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ location, locationEnabled }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [weather, setWeather] = useState(weatherFallback);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState(null);
+
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        setWeatherLoading(true);
+        setWeatherError(null);
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,apparent_temperature,weather_code`
+        );
+        const data = await response.json();
+        if (data.current) {
+          const conditionMap = {
+            0: 'Clear',
+            1: 'Mainly clear',
+            2: 'Partly cloudy',
+            3: 'Overcast',
+            45: 'Fog',
+            48: 'Depositing rime fog',
+            51: 'Light drizzle',
+            53: 'Moderate drizzle',
+            55: 'Dense drizzle',
+            61: 'Slight rain',
+            63: 'Moderate rain',
+            65: 'Heavy rain',
+            71: 'Slight snow',
+            73: 'Moderate snow',
+            75: 'Heavy snow',
+            80: 'Rain showers',
+            81: 'Moderate showers',
+            82: 'Violent showers',
+            95: 'Thunderstorm',
+            99: 'Hail',
+          };
+
+          setWeather({
+            temperature: `${data.current.temperature_2m}°C`,
+            condition: conditionMap[data.current.weather_code] || 'Cloudy',
+            humidity: `${data.current.relative_humidity_2m}%`,
+            wind: `${data.current.wind_speed_10m} km/h`,
+            feelsLike: `${data.current.apparent_temperature}°C`,
+          });
+        } else {
+          setWeatherError('Weather data unavailable');
+        }
+      } catch (error) {
+        setWeatherError('Unable to load weather');
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    fetchWeather();
+    const interval = setInterval(() => {
+      fetchWeather();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [location]);
 
   const handleToggleNotifications = () => {
     setShowNotifications((prev) => !prev);

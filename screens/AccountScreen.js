@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 
-export default function AccountScreen({ onSignOut }) {
+export default function AccountScreen({ onSignOut, locationEnabled, onToggleLocation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Account</Text>
@@ -12,6 +12,18 @@ export default function AccountScreen({ onSignOut }) {
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Settings</Text>
         <Text style={styles.sectionText}>Notification preferences, profile details, and route options are available here.</Text>
+        <View style={styles.settingRow}>
+          <View>
+            <Text style={styles.settingLabel}>Allow location</Text>
+            <Text style={styles.settingDescription}>Use your location for weather updates and map centering.</Text>
+          </View>
+          <Switch
+            value={locationEnabled}
+            onValueChange={onToggleLocation}
+            trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
+            thumbColor={locationEnabled ? '#10B981' : '#FFFFFF'}
+          />
+        </View>
       </View>
       <TouchableOpacity style={styles.button} onPress={onSignOut}>
         <Text style={styles.buttonText}>Sign Out</Text>
@@ -74,6 +86,23 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 16,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  settingDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+    maxWidth: 220,
   },
   button: {
     backgroundColor: '#FFFFFF',

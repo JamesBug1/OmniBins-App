@@ -8,7 +8,18 @@ const markers = [
   { id: '3', title: '3rd Ave', coordinate: { latitude: 37.78125, longitude: -122.4054 } },
 ];
 
-export default function MapScreen() {
+export default function MapScreen({ locationEnabled, location }) {
+  const region = {
+    latitude: location.latitude,
+    longitude: location.longitude,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.05,
+  };
+
+  const markersToShow = locationEnabled
+    ? [{ id: 'current', title: 'Your location', coordinate: location }]
+    : markers;
+
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
@@ -17,16 +28,8 @@ export default function MapScreen() {
       <View style={styles.searchCard}>
         <TextInput placeholder="Search route or stop" placeholderTextColor="#9CA3AF" style={styles.searchInput} />
       </View>
-      <MapView
-        style={styles.map}
-        initialRegion={{
-          latitude: 37.785834,
-          longitude: -122.406417,
-          latitudeDelta: 0.04,
-          longitudeDelta: 0.05,
-        }}
-      >
-        {markers.map((marker) => (
+      <MapView style={styles.map} region={region}>
+        {markersToShow.map((marker) => (
           <Marker key={marker.id} coordinate={marker.coordinate} title={marker.title} />
         ))}
       </MapView>

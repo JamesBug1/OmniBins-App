@@ -15,6 +15,16 @@ const Tab = createBottomTabNavigator();
 
 export default function App() {
   const [signedIn, setSignedIn] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
+
+  const defaultRegion = {
+    latitude: 37.785834,
+    longitude: -122.406417,
+  };
+
+  const userLocation = locationEnabled
+    ? { latitude: 10.3, longitude: 123.9 }
+    : defaultRegion;
 
   return (
     <SafeAreaProvider>
@@ -42,12 +52,34 @@ export default function App() {
               },
             })}
           >
-            <Tab.Screen name="Dashboard" component={DashboardScreen} />
-            <Tab.Screen name="Schedule" component={ScheduleScreen} />
-            <Tab.Screen name="Map" component={MapScreen} />
-            <Tab.Screen name="Report" component={ReportScreen} />
+            <Tab.Screen
+              name="Dashboard"
+              children={() => (
+                <DashboardScreen location={userLocation} locationEnabled={locationEnabled} />
+              )}
+            />
+            <Tab.Screen
+              name="Schedule"
+              component={ScheduleScreen}
+            />
+            <Tab.Screen
+              name="Map"
+              children={() => (
+                <MapScreen location={userLocation} locationEnabled={locationEnabled} />
+              )}
+            />
+            <Tab.Screen
+              name="Report"
+              component={ReportScreen}
+            />
             <Tab.Screen name="Account">
-              {() => <AccountScreen onSignOut={() => setSignedIn(false)} />}
+              {() => (
+                <AccountScreen
+                  onSignOut={() => setSignedIn(false)}
+                  locationEnabled={locationEnabled}
+                  onToggleLocation={() => setLocationEnabled((prev) => !prev)}
+                />
+              )}
             </Tab.Screen>
           </Tab.Navigator>
         ) : (
