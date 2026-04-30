@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const alertItems = [
@@ -29,10 +29,23 @@ const stats = {
 };
 
 export default function DashboardScreen({ location, locationEnabled }) {
+  const { width, height } = useWindowDimensions();
   const [showNotifications, setShowNotifications] = useState(false);
   const [weather, setWeather] = useState(weatherFallback);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState(null);
+
+  const responsiveStyles = {
+    padding: width < 360 ? 12 : 16,
+    paddingLarge: width < 360 ? 14 : 20,
+    paddingMedium: width < 360 ? 12 : 18,
+    gap: width < 360 ? 8 : 16,
+    radiusLarge: width < 360 ? 18 : 24,
+    fontLarge: width < 360 ? 22 : 28,
+    fontMedium: width < 360 ? 16 : 20,
+    fontSmall: width < 360 ? 12 : 14,
+    fontTiny: width < 360 ? 10 : 12,
+  };
 
   useEffect(() => {
     const fetchWeather = async () => {

@@ -17,15 +17,36 @@ const Tab = createBottomTabNavigator();
 export default function App() {
   const [signedIn, setSignedIn] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState('undetermined');
+  const [location, setLocation] = useState({ latitude: 10.3, longitude: 123.9 });
 
   const defaultRegion = {
     latitude: 37.785834,
     longitude: -122.406417,
   };
 
-  const userLocation = locationEnabled
-    ? { latitude: 10.3, longitude: 123.9 }
-    : defaultRegion;
+  const userLocation = locationEnabled ? location : defaultRegion;
+
+  const handleToggleLocation = async () => {
+    if (locationEnabled) {
+      setLocationEnabled(false);
+      return;
+    }
+
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    setPermissionStatus(status);
+
+    if (status === 'granted') {
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      setLocation({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      });
+      setLocationEnabled(true);
+    } else {
+      setLocationEnabled(false);
+    }
+  };
 
   return (
     <SafeAreaProvider>
@@ -78,7 +99,8 @@ export default function App() {
                 <AccountScreen
                   onSignOut={() => setSignedIn(false)}
                   locationEnabled={locationEnabled}
-                  onToggleLocation={() => setLocationEnabled((prev) => !prev)}
+                  onToggleLocation={handleToggleLocation}
+                  permissionStatus={permissionStatus}
                 />
               )}
             </Tab.Screen>
