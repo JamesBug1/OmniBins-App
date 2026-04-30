@@ -1,0 +1,43 @@
+name: Expo CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: |
+          npm install  # Install all project dependencies defined in package.json
+
+      - name: Install Expo CLI
+        run: |
+          npm install -g expo-cli  # Install Expo CLI globally
+
+      - name: Login to Expo
+        run: |
+          echo "EXPO_TOKEN=${{ secrets.EXPO_TOKEN }}" > .env
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }} 
+      - name: Build Android APK
+        run: |
+          expo build:android -t apk --no-wait  # Trigger Expo to build an APK for Android (asynchronous)
+
+      - name: Build iOS IPA
+        run: |
+          expo build:ios -t archive --no-wait  # Trigger Expo to build an IPA for iOS (asynchronous)
