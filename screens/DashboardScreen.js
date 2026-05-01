@@ -124,7 +124,7 @@ export default function DashboardScreen({ location, locationEnabled }) {
           <Text style={styles.pageTitle}>Dashboard</Text>
         </View>
         <TouchableOpacity style={styles.notificationButton} activeOpacity={0.7} onPress={handleToggleNotifications}>
-          <MaterialCommunityIcons name="bell-outline" size={26} color="#FFFFFF" />
+          <MaterialCommunityIcons name="bell-outline" size={26} color="#2E7D32" />
           <View style={styles.notificationBadge} />
         </TouchableOpacity>
       </View>
@@ -270,7 +270,6 @@ const styles = StyleSheet.create({  container: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#2E7D32',
     alignItems: 'center',
     justifyContent: 'center',
   },

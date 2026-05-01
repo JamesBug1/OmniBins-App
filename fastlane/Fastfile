@@ -1,0 +1,6 @@
+platform :android do
+  desc "Build APK for Android"
+  lane :build_apk do
+    sh("expo build:android -t apk")
+  end
+end
