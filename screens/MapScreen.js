@@ -1,55 +1,81 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TextInput, View, TouchableOpacity, ScrollView, useWindowDimensions, Modal } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const binLocations = [
   {
-    id: 'BIN-001',
-    title: 'Bin 001',
-    coordinate: { latitude: 10.295, longitude: 123.88 },
-    address: 'Main Street',
+    id: 'BIN-01',
+    title: 'BIN-01',
+    coordinate: { latitude: 10.2962, longitude: 123.8840 },
+    address: 'Public Market, Argao',
     status: 'Normal',
     capacity: '15%',
     lastCollection: '8 hours ago',
   },
   {
-    id: 'BIN-002',
-    title: 'Bin 002',
-    coordinate: { latitude: 10.305, longitude: 123.89 },
-    address: 'Park Ave',
+    id: 'BIN-02',
+    title: 'BIN-02',
+    coordinate: { latitude: 10.2979, longitude: 123.8803 },
+    address: 'Tulic, Argao',
     status: 'Near Full',
     capacity: '75%',
     lastCollection: '2 hours ago',
   },
   {
-    id: 'BIN-003',
-    title: 'Bin 003',
-    coordinate: { latitude: 10.31, longitude: 123.87 },
-    address: 'Beach Road',
+    id: 'BIN-03',
+    title: 'BIN-03',
+    coordinate: { latitude: 10.2988, longitude: 123.8852 },
+    address: 'Brgy. Tugas, Argao',
     status: 'Full',
     capacity: '100%',
     lastCollection: '30 minutes ago',
   },
   {
-    id: 'BIN-004',
-    title: 'Bin 004',
-    coordinate: { latitude: 14.5982, longitude: 120.9845 },
-    address: 'Beach Road',
+    id: 'BIN-04',
+    title: 'BIN-04',
+    coordinate: { latitude: 10.2948, longitude: 123.8808 },
+    address: 'Brgy. Hugpa, Argao',
     status: 'Normal',
     capacity: '25%',
     lastCollection: '5 hours ago',
   },
   {
-    id: 'BIN-005',
-    title: 'Bin 005',
-    coordinate: { latitude: 10.3, longitude: 123.92 },
-    address: 'Commercial Hub',
+    id: 'BIN-05',
+    title: 'BIN-05',
+    coordinate: { latitude: 10.2956, longitude: 123.8829 },
+    address: 'Public Market Extension, Argao',
     status: 'Near Full',
     capacity: '80%',
     lastCollection: '1 hour ago',
   },
 ];
+
+const binRoutes = {
+  'BIN-01': [
+    { latitude: 10.2960, longitude: 123.8835 },
+    { latitude: 10.2961, longitude: 123.8838 },
+  ],
+  'BIN-02': [
+    { latitude: 10.2965, longitude: 123.8840 },
+    { latitude: 10.2972, longitude: 123.8820 },
+    { latitude: 10.2977, longitude: 123.8810 },
+  ],
+  'BIN-03': [
+    { latitude: 10.2968, longitude: 123.8845 },
+    { latitude: 10.2974, longitude: 123.8850 },
+    { latitude: 10.2980, longitude: 123.8851 },
+  ],
+  'BIN-04': [
+    { latitude: 10.2955, longitude: 123.8825 },
+    { latitude: 10.2950, longitude: 123.8815 },
+    { latitude: 10.2949, longitude: 123.8810 },
+  ],
+  'BIN-05': [
+    { latitude: 10.2960, longitude: 123.8830 },
+    { latitude: 10.2958, longitude: 123.8832 },
+  ],
+};
 
 const getStatusColor = (status) => {
   switch (status) {
@@ -78,9 +104,21 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return (R * c).toFixed(2);
 };
 
-export default function MapScreen({ locationEnabled, location }) {
+export default function MapScreen({ locationEnabled, location, route, bins = [] }) {
   const { width, height } = useWindowDimensions();
   const [selectedBin, setSelectedBin] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [showNavigation, setShowNavigation] = useState(false);
+
+  useEffect(() => {
+    if (route?.params?.selectedBinId) {
+      const selected = bins.find((bin) => bin.id === route.params.selectedBinId);
+      if (selected) {
+        setSelectedBin(selected);
+        setShowDetails(false);
+      }
+    }
+  }, [route?.params?.selectedBinId, bins]);
 
   const responsiveStyles = {
     padding: width < 360 ? 12 : 16,
@@ -93,34 +131,52 @@ export default function MapScreen({ locationEnabled, location }) {
     detailsPanelHeight: Math.min(height * 0.6, 600),
   };
 
-  const region = {
-    latitude: location.latitude,
-    longitude: location.longitude,
-    latitudeDelta: 0.04,
-    longitudeDelta: 0.05,
-  };
-
-  const handleGetDirections = () => {
-    if (selectedBin && locationEnabled) {
-      const distance = calculateDistance(
+  const mapData = bins.length ? bins : binLocations;
+  const routeDistance = selectedBin
+    ? calculateDistance(
         location.latitude,
         location.longitude,
         selectedBin.coordinate.latitude,
         selectedBin.coordinate.longitude
-      );
-      alert(
-        `📍 Route to ${selectedBin.id}\n\n` +
-        `From: Your Location\n` +
-        `To: ${selectedBin.address}\n\n` +
-        `Distance: ${distance} km\n` +
-        `Status: ${selectedBin.status}\n\n` +
-        `Tap Get Directions to open maps app.`
-      );
-    } else if (selectedBin) {
-      alert(
-        `Enable location in settings to calculate distance and get directions to ${selectedBin.id}.`
-      );
+      )
+    : null;
+
+  const routeCoordinates = selectedBin
+    ? [
+        location,
+        ...(binRoutes[selectedBin.id] || []),
+        selectedBin.coordinate,
+      ]
+    : [];
+
+  const region = selectedBin
+    ? {
+        latitude: (location.latitude + selectedBin.coordinate.latitude) / 2,
+        longitude: (location.longitude + selectedBin.coordinate.longitude) / 2,
+        latitudeDelta: Math.max(0.04, Math.abs(location.latitude - selectedBin.coordinate.latitude) * 2.5),
+        longitudeDelta: Math.max(0.05, Math.abs(location.longitude - selectedBin.coordinate.longitude) * 2.5),
+      }
+    : {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.05,
+      };
+
+  const handleGetDirections = () => {
+    if (selectedBin) {
+      setShowNavigation(true);
     }
+  };
+
+  const calculateEstimatedTime = (distanceKm) => {
+    const avgSpeed = 30;
+    const hours = Math.floor(distanceKm / avgSpeed);
+    const minutes = Math.round((distanceKm % avgSpeed) / avgSpeed * 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
   };
 
   return (
@@ -133,31 +189,41 @@ export default function MapScreen({ locationEnabled, location }) {
         <TextInput placeholder="Search route or stop" placeholderTextColor="#9CA3AF" style={[styles.searchInput, { fontSize: responsiveStyles.fontSize15 }]} />
       </View>
       <MapView style={[styles.map, { marginHorizontal: responsiveStyles.padding }]} region={region}>
-        {binLocations.map((bin) => (
+        {mapData.map((bin) => (
           <Marker
             key={bin.id}
             coordinate={bin.coordinate}
-            onPress={() => setSelectedBin(bin)}
+            onPress={() => {
+              setSelectedBin(bin);
+              setShowDetails(true);
+            }}
             title={bin.id}
           >
-            <View style={[styles.markerContainer, { backgroundColor: getStatusColor(bin.status) }]}>
+            <View style={[styles.markerContainer, { backgroundColor: getStatusColor(bin.status || 'Normal') }]}> 
               <MaterialCommunityIcons name="trash-can" size={18} color="#FFFFFF" />
             </View>
           </Marker>
         ))}
 
-        {locationEnabled && (
-          <Marker coordinate={location} title="Your Location">
-            <View style={styles.gpsPulse}>
-              <View style={styles.gpsMarker}>
-                <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
-              </View>
-            </View>
-          </Marker>
+        {selectedBin && routeCoordinates.length > 1 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#2563EB"
+            strokeWidth={4}
+            lineDashPattern={[6, 4]}
+          />
         )}
+
+        <Marker coordinate={location} title="Your Location">
+          <View style={styles.gpsPulse}>
+            <View style={styles.gpsMarker}>
+              <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+            </View>
+          </View>
+        </Marker>
       </MapView>
 
-      {selectedBin && (
+      {selectedBin && showDetails && (
         <View style={[styles.detailsPanel, { maxHeight: responsiveStyles.detailsPanelHeight, paddingHorizontal: responsiveStyles.paddingLarge }]}>
           <TouchableOpacity onPress={() => setSelectedBin(null)} style={styles.closeButton}>
             <MaterialCommunityIcons name="close" size={width < 360 ? 18 : 20} color="#6B7280" />
@@ -194,6 +260,11 @@ export default function MapScreen({ locationEnabled, location }) {
               {selectedBin.coordinate.latitude.toFixed(4)}, {selectedBin.coordinate.longitude.toFixed(4)}
             </Text>
 
+            <View style={[styles.detailRow, { justifyContent: 'space-between' }]}> 
+              <Text style={[styles.detailHeading, { fontSize: responsiveStyles.fontSmall + 1 }]}>Distance</Text>
+              <Text style={[styles.detailValue, { fontSize: responsiveStyles.fontSize15 }]}>{routeDistance} km</Text>
+            </View>
+
             <View style={styles.detailRow}>
               <MaterialCommunityIcons name="clock-outline" size={14} color="#6B7280" />
               <Text style={[styles.detailLabel, { fontSize: responsiveStyles.fontSmall }]}>Last collection: {selectedBin.lastCollection}</Text>
@@ -206,6 +277,87 @@ export default function MapScreen({ locationEnabled, location }) {
           </ScrollView>
         </View>
       )}
+
+      <Modal visible={showNavigation} transparent animationType="slide" onRequestClose={() => setShowNavigation(false)}>
+        <View style={styles.navigationContainer}>
+          <View style={styles.navigationHeader}>
+            <TouchableOpacity onPress={() => setShowNavigation(false)} style={styles.navigationCloseButton}>
+              <MaterialCommunityIcons name="arrow-down" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.navigationTitle}>{selectedBin?.id}</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <View style={styles.navigationMap}>
+            <MapView style={styles.navigationMapInner} region={region}>
+              {selectedBin && routeCoordinates.length > 1 && (
+                <Polyline
+                  coordinates={routeCoordinates}
+                  strokeColor="#2563EB"
+                  strokeWidth={5}
+                  lineDashPattern={[6, 4]}
+                />
+              )}
+
+              {mapData.map((bin) => (
+                <Marker
+                  key={bin.id}
+                  coordinate={bin.coordinate}
+                  title={bin.id}
+                >
+                  <View style={[styles.markerContainer, { backgroundColor: getStatusColor(bin.status || 'Normal') }]}>
+                    <MaterialCommunityIcons name="trash-can" size={18} color="#FFFFFF" />
+                  </View>
+                </Marker>
+              ))}
+
+              <Marker coordinate={location} title="Your Location">
+                <View style={styles.gpsPulse}>
+                  <View style={styles.gpsMarker}>
+                    <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+                  </View>
+                </View>
+              </Marker>
+            </MapView>
+          </View>
+
+          <View style={styles.navigationInfo}>
+            <View style={styles.navigationStats}>
+              <View style={styles.navigationStatBox}>
+                <MaterialCommunityIcons name="road" size={20} color="#2563EB" />
+                <Text style={styles.navigationStatLabel}>Distance</Text>
+                <Text style={styles.navigationStatValue}>{routeDistance} km</Text>
+              </View>
+              <View style={styles.navigationStatBox}>
+                <MaterialCommunityIcons name="clock-outline" size={20} color="#2563EB" />
+                <Text style={styles.navigationStatLabel}>Est. Time</Text>
+                <Text style={styles.navigationStatValue}>{calculateEstimatedTime(parseFloat(routeDistance))}</Text>
+              </View>
+              <View style={styles.navigationStatBox}>
+                <MaterialCommunityIcons name="map-marker-check" size={20} color="#2563EB" />
+                <Text style={styles.navigationStatLabel}>Destination</Text>
+                <Text style={styles.navigationStatValue}>{selectedBin?.id}</Text>
+              </View>
+            </View>
+
+            <View style={styles.navigationDetails}>
+              <Text style={styles.navigationDestinationLabel}>Destination</Text>
+              <Text style={styles.navigationDestinationName}>{selectedBin?.address}</Text>
+              <Text style={styles.navigationDestinationStatus}>{selectedBin?.status}</Text>
+
+              <View style={styles.navigationInstructions}>
+                <MaterialCommunityIcons name="routes" size={16} color="#6B7280" />
+                <Text style={styles.navigationInstructionText}>Follow the marked route to reach the bin location</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.navigationStartButton}>
+              <MaterialCommunityIcons name="navigation" size={18} color="#FFFFFF" />
+              <Text style={styles.navigationStartButtonText}>Start Navigation</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -361,6 +513,114 @@ const styles = StyleSheet.create({
   directionsButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+    marginLeft: 8,
+  },
+  navigationContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  navigationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  navigationCloseButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navigationTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  navigationMap: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  navigationMapInner: {
+    flex: 1,
+  },
+  navigationInfo: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  navigationStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 24,
+  },
+  navigationStatBox: {
+    alignItems: 'center',
+  },
+  navigationStatLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  navigationStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 4,
+  },
+  navigationDetails: {
+    marginBottom: 20,
+  },
+  navigationDestinationLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+  },
+  navigationDestinationName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    marginTop: 4,
+  },
+  navigationDestinationStatus: {
+    fontSize: 14,
+    color: '#2563EB',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  navigationInstructions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  navigationInstructionText: {
+    marginLeft: 10,
+    fontSize: 13,
+    color: '#6B7280',
+    flex: 1,
+    fontWeight: '500',
+  },
+  navigationStartButton: {
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  navigationStartButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 16,
     marginLeft: 8,
   },
 });

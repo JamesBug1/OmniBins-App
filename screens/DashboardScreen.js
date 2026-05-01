@@ -23,12 +23,7 @@ const weatherFallback = {
   feelsLike: '31°C',
 };
 
-const stats = {
-  completed: 12,
-  pending: 8,
-};
-
-export default function DashboardScreen({ location, locationEnabled }) {
+export default function DashboardScreen({ location, locationEnabled, completed = 0, pending = 0 }) {
   const { width, height } = useWindowDimensions();
   const [showNotifications, setShowNotifications] = useState(false);
   const [weather, setWeather] = useState(weatherFallback);
@@ -209,11 +204,11 @@ export default function DashboardScreen({ location, locationEnabled }) {
 
       <View style={styles.summaryRow}>
         <View style={[styles.summaryCard, styles.summaryCardComplete, styles.summaryCardSpacing]}>
-          <Text style={styles.summaryCount}>{stats.completed}</Text>
+          <Text style={styles.summaryCount}>{completed}</Text>
           <Text style={styles.summaryLabel}>Completed</Text>
         </View>
         <View style={[styles.summaryCard, styles.summaryCardPending]}>
-          <Text style={styles.summaryCount}>{stats.pending}</Text>
+          <Text style={styles.summaryCount}>{pending}</Text>
           <Text style={styles.summaryLabel}>Pending</Text>
           <Text style={styles.summarySubLabel}>Tasks</Text>
         </View>

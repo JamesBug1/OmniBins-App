@@ -19,13 +19,61 @@ export default function App() {
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState('undetermined');
   const [location, setLocation] = useState({ latitude: 10.3, longitude: 123.9 });
+  const [bins, setBins] = useState([
+    {
+      id: 'BIN-01',
+      title: 'BIN-01',
+      address: 'Public Market, Argao',
+      time: '10:30 AM',
+      coordinate: { latitude: 10.2962, longitude: 123.8840 },
+      collected: false,
+      details: 'Recyclable and organic pickup',
+    },
+    {
+      id: 'BIN-02',
+      title: 'BIN-02',
+      address: 'Tulic, Argao',
+      time: '10:45 AM',
+      coordinate: { latitude: 10.2979, longitude: 123.8803 },
+      collected: false,
+      details: 'General waste collection',
+    },
+    {
+      id: 'BIN-03',
+      title: 'BIN-03',
+      address: 'Brgy. Tugas, Argao',
+      time: '11:05 AM',
+      coordinate: { latitude: 10.2988, longitude: 123.8852 },
+      collected: false,
+      details: 'Organic waste section',
+    },
+    {
+      id: 'BIN-04',
+      title: 'BIN-04',
+      address: 'Brgy. Hugpa, Argao',
+      time: '11:30 AM',
+      coordinate: { latitude: 10.2948, longitude: 123.8808 },
+      collected: false,
+      details: 'Paper and cardboard pickup',
+    },
+  ]);
 
   const defaultRegion = {
-    latitude: 37.785834,
-    longitude: -122.406417,
+    latitude: 10.2965,
+    longitude: 123.8835,
   };
 
   const userLocation = locationEnabled ? location : defaultRegion;
+  const completedCount = bins.filter((bin) => bin.collected).length;
+  const pendingCount = bins.length - completedCount;
+
+  const handleCollectBin = (binId) => {
+    setBins((current) =>
+      current.map((bin) =>
+        bin.id === binId ? { ...bin, collected: true } : bin
+      )
+    );
+  };
 
   const handleToggleLocation = async () => {
     if (locationEnabled) {
@@ -77,19 +125,33 @@ export default function App() {
             <Tab.Screen
               name="Dashboard"
               children={() => (
-                <DashboardScreen location={userLocation} locationEnabled={locationEnabled} />
+                <DashboardScreen
+                  location={userLocation}
+                  locationEnabled={locationEnabled}
+                  completed={completedCount}
+                  pending={pendingCount}
+                />
               )}
             />
-            <Tab.Screen
-              name="Schedule"
-              component={ScheduleScreen}
-            />
-            <Tab.Screen
-              name="Map"
-              children={() => (
-                <MapScreen location={userLocation} locationEnabled={locationEnabled} />
+            <Tab.Screen name="Schedule">
+              {({ navigation }) => (
+                <ScheduleScreen
+                  bins={bins}
+                  onCollectBin={handleCollectBin}
+                  onOpenBinOnMap={(binId) => navigation.navigate('Map', { selectedBinId: binId })}
+                />
               )}
-            />
+            </Tab.Screen>
+            <Tab.Screen name="Map">
+              {({ route }) => (
+                <MapScreen
+                  location={userLocation}
+                  locationEnabled={locationEnabled}
+                  route={route}
+                  bins={bins}
+                />
+              )}
+            </Tab.Screen>
             <Tab.Screen
               name="Report"
               component={ReportScreen}
