@@ -468,10 +468,10 @@ const styles = StyleSheet.create({  container: {
   },
 
   summaryCardComplete: {
-    backgroundColor: '#F4F9F4',
+    backgroundColor: '#c3fac3',
   },
   summaryCardPending: {
-    backgroundColor: '#FEF4EC',
+    backgroundColor: '#ffe7d3',
   },
   summaryCount: {
     fontSize: 28,
@@ -549,4 +549,4 @@ const styles = StyleSheet.create({  container: {
     fontSize: 12,
     color: '#6B7280',
   },
-});
+});  

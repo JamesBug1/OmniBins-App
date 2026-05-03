@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, TouchableOpacity, ScrollView, useWindowDimensions, Modal } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, Text, TextInput, View, TouchableOpacity, ScrollView, useWindowDimensions, Modal, Alert } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -109,6 +109,16 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
   const [selectedBin, setSelectedBin] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showNavigation, setShowNavigation] = useState(false);
+  
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState(null);
+  const [routeTrail, setRouteTrail] = useState([]);
+  const [activeRoute, setActiveRoute] = useState([]);
+  const [remainingDistance, setRemainingDistance] = useState(0);
+  const [remainingTime, setRemainingTime] = useState(0);
+  const [currentInstruction, setCurrentInstruction] = useState('');
+  const [nextInstruction, setNextInstruction] = useState('');
+  const navigationIntervalRef = useRef(null);
 
   useEffect(() => {
     if (route?.params?.selectedBinId) {
@@ -119,6 +129,20 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
       }
     }
   }, [route?.params?.selectedBinId, bins]);
+
+  useEffect(() => {
+    return () => {
+      if (navigationIntervalRef.current) {
+        clearInterval(navigationIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showNavigation && isNavigating) {
+      stopNavigation();
+    }
+  }, [showNavigation]);
 
   const responsiveStyles = {
     padding: width < 360 ? 12 : 16,
@@ -149,16 +173,17 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
       ]
     : [];
 
+  const activeLocation = isNavigating && currentPosition ? currentPosition : location;
   const region = selectedBin
     ? {
-        latitude: (location.latitude + selectedBin.coordinate.latitude) / 2,
-        longitude: (location.longitude + selectedBin.coordinate.longitude) / 2,
-        latitudeDelta: Math.max(0.04, Math.abs(location.latitude - selectedBin.coordinate.latitude) * 2.5),
-        longitudeDelta: Math.max(0.05, Math.abs(location.longitude - selectedBin.coordinate.longitude) * 2.5),
+        latitude: (activeLocation.latitude + selectedBin.coordinate.latitude) / 2,
+        longitude: (activeLocation.longitude + selectedBin.coordinate.longitude) / 2,
+        latitudeDelta: Math.max(0.04, Math.abs(activeLocation.latitude - selectedBin.coordinate.latitude) * 2.5),
+        longitudeDelta: Math.max(0.05, Math.abs(activeLocation.longitude - selectedBin.coordinate.longitude) * 2.5),
       }
     : {
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: activeLocation.latitude,
+        longitude: activeLocation.longitude,
         latitudeDelta: 0.04,
         longitudeDelta: 0.05,
       };
@@ -177,6 +202,131 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
       return `${hours}h ${minutes}m`;
     }
     return `${minutes}m`;
+  };
+
+  const generateTurnByTurnDirections = (routeCoords) => {
+    const directions = [];
+    if (routeCoords.length < 2) return directions;
+
+    for (let i = 0; i < routeCoords.length - 1; i++) {
+      const current = routeCoords[i];
+      const next = routeCoords[i + 1];
+      
+      const dLon = (next.longitude - current.longitude) * Math.PI / 180;
+      const lat1 = current.latitude * Math.PI / 180;
+      const lat2 = next.latitude * Math.PI / 180;
+      const y = Math.sin(dLon) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+      const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+      
+      let direction = '';
+      if (bearing >= 337.5 || bearing < 22.5) direction = 'North';
+      else if (bearing >= 22.5 && bearing < 67.5) direction = 'Northeast';
+      else if (bearing >= 67.5 && bearing < 112.5) direction = 'East';
+      else if (bearing >= 112.5 && bearing < 157.5) direction = 'Southeast';
+      else if (bearing >= 157.5 && bearing < 202.5) direction = 'South';
+      else if (bearing >= 202.5 && bearing < 247.5) direction = 'Southwest';
+      else if (bearing >= 247.5 && bearing < 292.5) direction = 'West';
+      else direction = 'Northwest';
+      
+      const distance = calculateDistance(current.latitude, current.longitude, next.latitude, next.longitude);
+      directions.push({
+        instruction: `Continue ${direction} for ${distance} km`,
+        distance: parseFloat(distance),
+        coordinate: next
+      });
+    }
+    
+    directions.push({
+      instruction: 'You have arrived at your destination',
+      distance: 0,
+      coordinate: routeCoords[routeCoords.length - 1]
+    });
+    
+    return directions;
+  };
+
+  const startNavigation = () => {
+    if (!selectedBin) return;
+    
+    setIsNavigating(true);
+    setCurrentPosition(location);
+    setRouteTrail([location]);
+    setActiveRoute(routeCoordinates);
+    setRemainingDistance(parseFloat(routeDistance));
+    setRemainingTime(parseFloat(routeDistance) / 30 * 60); // 30 km/h converted to minutes
+    
+    const directions = generateTurnByTurnDirections(routeCoordinates);
+    if (directions.length > 0) {
+      setCurrentInstruction(directions[0].instruction);
+      if (directions.length > 1) {
+        setNextInstruction(directions[1].instruction);
+      }
+    }
+    
+    // Start simulation
+    let step = 0;
+    const totalSteps = 100; // Simulate 100 steps
+    const stepDistance = parseFloat(routeDistance) / totalSteps;
+    
+    navigationIntervalRef.current = setInterval(() => {
+      step++;
+      const progress = step / totalSteps;
+      
+      // Calculate current position along the route
+      if (routeCoordinates.length > 1) {
+        const segmentIndex = Math.floor(progress * (routeCoordinates.length - 1));
+        const segmentProgress = (progress * (routeCoordinates.length - 1)) % 1;
+        
+        const currentSegment = routeCoordinates[segmentIndex];
+        const nextSegment = routeCoordinates[Math.min(segmentIndex + 1, routeCoordinates.length - 1)];
+        
+        const currentLat = currentSegment.latitude + (nextSegment.latitude - currentSegment.latitude) * segmentProgress;
+        const currentLng = currentSegment.longitude + (nextSegment.longitude - currentSegment.longitude) * segmentProgress;
+        
+        const updatedPosition = { latitude: currentLat, longitude: currentLng };
+        setCurrentPosition(updatedPosition);
+        setRouteTrail((prevTrail) => [...prevTrail, updatedPosition]);
+        setActiveRoute([updatedPosition, ...routeCoordinates.slice(segmentIndex + 1)]);
+      }
+      
+      // Update remaining distance and time
+      const newRemainingDistance = Math.max(0, parseFloat(routeDistance) - (step * stepDistance));
+      setRemainingDistance(newRemainingDistance);
+      setRemainingTime(Math.max(0, newRemainingDistance / 30 * 60));
+      
+      // Update instructions based on progress
+      const directionIndex = Math.floor(progress * directions.length);
+      if (directionIndex < directions.length) {
+        setCurrentInstruction(directions[directionIndex].instruction);
+        if (directionIndex + 1 < directions.length) {
+          setNextInstruction(directions[directionIndex + 1].instruction);
+        } else {
+          setNextInstruction('');
+        }
+      }
+      
+      // Stop navigation when arrived
+      if (step >= totalSteps) {
+        stopNavigation();
+        Alert.alert('Navigation Complete', 'You have arrived at the bin location!');
+      }
+    }, 2000); // Update every 2 seconds
+  };
+
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setCurrentPosition(null);
+    setRouteTrail([]);
+    setActiveRoute([]);
+    setRemainingDistance(0);
+    setRemainingTime(0);
+    setCurrentInstruction('');
+    setNextInstruction('');
+    if (navigationIntervalRef.current) {
+      clearInterval(navigationIntervalRef.current);
+      navigationIntervalRef.current = null;
+    }
   };
 
   return (
@@ -205,12 +355,31 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
           </Marker>
         ))}
 
-        {selectedBin && routeCoordinates.length > 1 && (
+        {selectedBin && routeCoordinates.length > 1 && !isNavigating && (
           <Polyline
             coordinates={routeCoordinates}
             strokeColor="#2563EB"
             strokeWidth={4}
             lineDashPattern={[6, 4]}
+          />
+        )}
+
+        {isNavigating && routeTrail.length > 1 && (
+          <Polyline
+            coordinates={routeTrail}
+            strokeColor="#16A34A"
+            strokeWidth={6}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+
+        {isNavigating && activeRoute.length > 1 && (
+          <Polyline
+            coordinates={activeRoute}
+            strokeColor="#2563EB"
+            strokeWidth={4}
+            lineDashPattern={[8, 6]}
           />
         )}
 
@@ -290,12 +459,31 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
 
           <View style={styles.navigationMap}>
             <MapView style={styles.navigationMapInner} region={region}>
-              {selectedBin && routeCoordinates.length > 1 && (
+                  {selectedBin && routeCoordinates.length > 1 && !isNavigating && (
                 <Polyline
                   coordinates={routeCoordinates}
                   strokeColor="#2563EB"
                   strokeWidth={5}
                   lineDashPattern={[6, 4]}
+                />
+              )}
+
+              {isNavigating && routeTrail.length > 1 && (
+                <Polyline
+                  coordinates={routeTrail}
+                  strokeColor="#16A34A"
+                  strokeWidth={6}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              )}
+
+              {isNavigating && activeRoute.length > 1 && (
+                <Polyline
+                  coordinates={activeRoute}
+                  strokeColor="#2563EB"
+                  strokeWidth={4}
+                  lineDashPattern={[8, 6]}
                 />
               )}
 
@@ -311,13 +499,25 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
                 </Marker>
               ))}
 
-              <Marker coordinate={location} title="Your Location">
-                <View style={styles.gpsPulse}>
-                  <View style={styles.gpsMarker}>
-                    <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+              {isNavigating && currentPosition ? (
+                <Marker coordinate={currentPosition} title="Current Position">
+                  <View style={styles.currentPositionMarker}>
+                    <View style={styles.currentPositionPulse}>
+                      <View style={styles.currentPositionInner}>
+                        <MaterialCommunityIcons name="navigation" size={16} color="#FFFFFF" />
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </Marker>
+                </Marker>
+              ) : (
+                <Marker coordinate={location} title="Your Location">
+                  <View style={styles.gpsPulse}>
+                    <View style={styles.gpsMarker}>
+                      <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </Marker>
+              )}
             </MapView>
           </View>
 
@@ -326,12 +526,16 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
               <View style={styles.navigationStatBox}>
                 <MaterialCommunityIcons name="road" size={20} color="#2563EB" />
                 <Text style={styles.navigationStatLabel}>Distance</Text>
-                <Text style={styles.navigationStatValue}>{routeDistance} km</Text>
+                <Text style={styles.navigationStatValue}>
+                  {isNavigating ? `${remainingDistance.toFixed(2)} km` : `${routeDistance} km`}
+                </Text>
               </View>
               <View style={styles.navigationStatBox}>
                 <MaterialCommunityIcons name="clock-outline" size={20} color="#2563EB" />
                 <Text style={styles.navigationStatLabel}>Est. Time</Text>
-                <Text style={styles.navigationStatValue}>{calculateEstimatedTime(parseFloat(routeDistance))}</Text>
+                <Text style={styles.navigationStatValue}>
+                  {isNavigating ? calculateEstimatedTime(remainingDistance) : calculateEstimatedTime(parseFloat(routeDistance))}
+                </Text>
               </View>
               <View style={styles.navigationStatBox}>
                 <MaterialCommunityIcons name="map-marker-check" size={20} color="#2563EB" />
@@ -345,16 +549,45 @@ export default function MapScreen({ locationEnabled, location, route, bins = [] 
               <Text style={styles.navigationDestinationName}>{selectedBin?.address}</Text>
               <Text style={styles.navigationDestinationStatus}>{selectedBin?.status}</Text>
 
-              <View style={styles.navigationInstructions}>
-                <MaterialCommunityIcons name="routes" size={16} color="#6B7280" />
-                <Text style={styles.navigationInstructionText}>Follow the marked route to reach the bin location</Text>
-              </View>
+              {isNavigating && (
+                <View style={styles.currentInstructionContainer}>
+                  <MaterialCommunityIcons name="navigation" size={20} color="#2563EB" />
+                  <View style={styles.instructionTextContainer}>
+                    <Text style={styles.currentInstructionLabel}>Current Instruction</Text>
+                    <Text style={styles.currentInstructionText}>{currentInstruction}</Text>
+                  </View>
+                </View>
+              )}
+
+              {isNavigating && nextInstruction && (
+                <View style={styles.nextInstructionContainer}>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#6B7280" />
+                  <View style={styles.instructionTextContainer}>
+                    <Text style={styles.nextInstructionLabel}>Next</Text>
+                    <Text style={styles.nextInstructionText}>{nextInstruction}</Text>
+                  </View>
+                </View>
+              )}
+
+              {!isNavigating && (
+                <View style={styles.navigationInstructions}>
+                  <MaterialCommunityIcons name="routes" size={16} color="#6B7280" />
+                  <Text style={styles.navigationInstructionText}>Follow the marked route to reach the bin location</Text>
+                </View>
+              )}
             </View>
 
-            <TouchableOpacity style={styles.navigationStartButton}>
-              <MaterialCommunityIcons name="navigation" size={18} color="#FFFFFF" />
-              <Text style={styles.navigationStartButtonText}>Start Navigation</Text>
-            </TouchableOpacity>
+            {!isNavigating ? (
+              <TouchableOpacity style={styles.navigationStartButton} onPress={startNavigation}>
+                <MaterialCommunityIcons name="navigation" size={18} color="#FFFFFF" />
+                <Text style={styles.navigationStartButtonText}>Start Navigation</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.navigationStopButton} onPress={stopNavigation}>
+                <MaterialCommunityIcons name="stop" size={18} color="#FFFFFF" />
+                <Text style={styles.navigationStopButtonText}>Stop Navigation</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -618,6 +851,91 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   navigationStartButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  currentPositionMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentPositionPulse: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(34, 197, 94, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#22C55E',
+  },
+  currentPositionInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentInstructionContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563EB',
+  },
+  nextInstructionContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  instructionTextContainer: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  currentInstructionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  currentInstructionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    lineHeight: 20,
+  },
+  nextInstructionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  nextInstructionText: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 18,
+  },
+  navigationStopButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  navigationStopButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
